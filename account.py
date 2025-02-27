@@ -3,14 +3,33 @@ import dotenv
 import requests
 import json
 import base64
+import time
 
 
-dotenv.load_dotenv()
+
+def token_auth(email, password):
+    auth_str = email + ":" + password
+    auth = auth_str.encode("ascii")
+    auth = base64.b64encode(auth)
+    token = requests.post(url="https://api.artifactsmmo.com/token", headers={
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Authorization": f"Basic {auth.decode("ascii")}"
+}).json()
+    dotenv.set_key(".env", "TOKEN", token["token"])
+
+
+
+######################################
+#                                    #
+#           Requests Class           #
+#                                    #
+######################################
 
 
 class Requests:
-    def __init__(self, character):
-        self.character = character
+    def __init__(self, character_name):
+        self.character_name = character_name
         self.token = os.getenv("TOKEN")
         self.base_url = "https://api.artifactsmmo.com"
         self.headers = {
@@ -29,19 +48,21 @@ class Requests:
             return super().__getattribute__(name)
 
 
-    def __get(self, endpoint:str) -> dict:
+    def __get(self, endpoint:str):
         """
         Takes the endpoint url, makes a GET request to the url with the data provided, and returns the response
 
         :param endpoint: A string representing the endpoint url
         :return: A dictionary representing the response
         """
+
         url = self.base_url + endpoint
         response = requests.get(url=url, headers=self.headers)
+        print(endpoint, response)
         return response.json()
 
 
-    def __post(self, endpoint:str, data:dict=None) -> dict:
+    def __post(self, endpoint:str, data:dict=None):
         """
        Takes the endpoint url, makes a POST request to the url with the data provided, and returns the response
 
@@ -49,8 +70,10 @@ class Requests:
        :param data: A dictionary representing the data to be sent in the request
        :return: A dictionary representing the response
        """
+
         url = self.base_url + endpoint
         response = requests.post(url=url, data=json.dumps(data), headers=self.headers)
+        print(endpoint, response)
         return response.json()
 
 
@@ -70,24 +93,22 @@ class Requests:
         :param task: A string representing the task
         :return: url endpoint for artifacts api to complete the task, or none if an error occurs due to index error
         """
-        task.split()
-        endpoints = {
-            "info": {
-                "me": "/characters/" + self.character.name,
-                "bank": "/my/bank/items",
-                "characters": "/my/characters"
-            },
-            "action": {
-                "deposit": "/my/" + self.character.name + "/action/bank/deposit",
-                "withdraw": "/my/" + self.character.name + "/action/bank/withdraw",
-            }}
+        task = task.split()
 
         try:
             if task[0] == "action" and task[1] not in ["deposit","withdraw"]:
-                return "/my/"+self.character.name+"/action/"+task[1]
-            elif task[0] == "token":
-                return "/token"
+                return "/my/"+self.character_name+"/action/"+task[1]
             else:
+                endpoints = {
+                    "info": {
+                        "me": "/characters/" + self.character_name,
+                        "bank": "/my/bank/items",
+                        "characters": "/my/characters"
+                    },
+                    "action": {
+                        "deposit": "/my/" + self.character_name + "/action/bank/deposit",
+                        "withdraw": "/my/" + self.character_name + "/action/bank/withdraw",
+                    }}
                 return endpoints[task[0]][task[1]]
         except IndexError:
             return "/"
@@ -110,12 +131,20 @@ class Requests:
 
 
 
+#####################################
+#                                   #
+#          Character Class          #
+#                                   #
+#####################################
+
+
 class Character:
     def __init__(self, name):
+        self.request = Requests(name)
         self.name = name
-        self.request = Requests(self)
 
         info = self.request.request("info me")
+        info = info["data"]
 
         self.name = info["name"]
         self.account = info["account"]
@@ -199,65 +228,69 @@ class Character:
 
 
 
-    def move(self):
-        self.request.request("",)
+    def move(self, x, y):
+        self.request.request("action move",data={"x":x,"y":y})
 
 
     def rest(self):
-        self.request.request("",)
+        self.request.request("action rest")
 
 
-    def equip_item(self):
-        self.request.request("",)
+    def equip_item(self, code, slot, quantity=1):
+        self.request.request("action equip",data={"code":code,"slot":slot,"quantity":quantity})
 
 
-    def unequip_item(self):
-        self.request.request("",)
+    def unequip_item(self, slot, quantity=1):
+        self.request.request("action unequip",data={"slot":slot,"quantity":quantity})
 
 
-    def use_item(self):
-        self.request.request("",)
+    def use_item(self, code, quantity=1):
+        self.request.request("action use",data={"code":code,"quantity":quantity})
 
 
     def fight(self):
-        self.request.request("",)
+        self.request.request("action fight")
 
 
     def gather(self):
-        self.request.request("",)
+        self.request.request("action gathering")
 
 
-    def craft(self):
-        self.request.request("",)
+    def craft(self, code, quantity=1):
+        self.request.request("action crafting",data={"code":code,"quantity":quantity})
 
 
-    def deposit(self):
-        self.request.request("",)
+    def deposit(self, code, quantity=1):
+        self.request.request("action deposit",data={"code":code,"quantity":quantity})
 
 
-    def withdraw(self):
-        self.request.request("",)
+    def withdraw(self, code, quantity=1):
+        self.request.request("action withdraw",data={"code":code,"quantity":quantity})
 
 
-    def recycle(self):
-        self.request.request("",)
+    def recycle(self, code, quantity=1):
+        self.request.request("action recycling",data={"code":code,"quantity":quantity})
 
 
     def complete_task(self):
-        self.request.request("",)
+        self.request.request("action task/complete")
 
 
     def task_exchange(self):
-        self.request.request("",)
+        self.request.request("action task/exchange")
 
 
     def accept_new_task(self):
-        self.request.request("",)
+        self.request.request("action task/new")
 
 
-    def __getattribute__(self, name):
-        info = self.request.request("info me")
+    def wait_for_cooldown(self):
+        self.update_info()
+        time.sleep(self.cooldown)
 
+
+    def update_info(self):
+        info = self.request.request("info me")["data"]
         self.name = info["name"]
         self.account = info["account"]
         self.skin = info["skin"]
@@ -338,22 +371,40 @@ class Character:
         self.inventory_max_items = info["inventory_max_items"]
         self.inventory = info["inventory"]
 
-        return super().__getattribute__(name)
+
+
+#####################################
+#                                   #
+#           Account Class           #
+#                                   #
+#####################################
 
 
 class Account:
-    def __init__(self, username, password):
+    def __init__(self, email, password):
         #login, get new token
-        self.auth = str(username+":"+password).encode("utf-8")
-        base64.b64encode(self.auth).decode("utf-8")
+        token_auth(email, password)
 
-        dotenv.load_dotenv()
-        dotenv.set_key("variables.env","TOKEN",self.auth)
-        self.request = Requests(self)
-        token = self.request.request("token")
-        dotenv.set_key("variables.env","TOKEN",token["token"])
+        self.request = Requests("")
+        self.bank = self.request.request("info bank")
 
-        self.characters = []
-        for character in self.request.request("info characters"):
-            self.characters.append(Character(character["name"]))
-        ...
+        self.characters = {}
+
+        for character in self.request.request("info characters")["data"]:
+            self.characters[character["name"]] = Character(character["name"])
+
+
+    def __getattribute__(self, name):
+        if name == "request":
+            return super().__getattribute__(name)
+        if name == "bank":
+            self.bank = self.request.request("info bank")
+
+        return super().__getattribute__(name)
+
+    def get_bank(self):
+        return self.bank
+
+    def get_characters(self):
+        return self.characters
+
